@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'utils/hash.dart';
 
-const String scriptUrl = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+const String scriptUrl = "https://script.google.com/macros/s/AKfycbzPTsPRjGeN9c1ebFnI6s6hTKTRmFUTTjjYOCg6EAF7pIjKU6XOvWsWyIPRWMX_ugmB/exec";
 const _timeout = Duration(seconds: 15);
 
 class ApiService {
