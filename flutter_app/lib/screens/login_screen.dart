@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../utils/hash.dart';
 import 'employee_screen.dart';
 import 'admin_screen.dart';
+import 'force_change_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,6 +16,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _nameCtrl     = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading       = false;
+  bool _obscure       = true;
   String _error       = '';
 
   Future<void> _login() async {
@@ -29,17 +32,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final result = await ApiService.login(name, password);
+
       if (result['success'] == true) {
-        final role = result['role'];
+        final role       = result['role'];
+        final mustChange = result['must_change'] == true;
+
         if (!mounted) return;
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => role == 'admin'
-                ? const AdminScreen()
-                : EmployeeScreen(userName: result['name']),
-          ),
-        );
+
+        if (role == 'admin') {
+          // Admin never gets forced password change
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminScreen()),
+          );
+        } else if (mustChange) {
+          // Employee must set a new password before continuing
+          // Pass the already-hashed password so ForceChange can verify it
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ForceChangePasswordScreen(
+                userName:              result['name'],
+                currentHashedPassword: hashPassword(password),
+              ),
+            ),
+          );
+        } else {
+          // Normal employee login
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EmployeeScreen(userName: result['name']),
+            ),
+          );
+        }
       } else {
         setState(() => _error = result['message'] ?? 'Login failed');
       }
@@ -63,8 +89,13 @@ class _LoginScreenState extends State<LoginScreen> {
               const Icon(Icons.local_parking, size: 80, color: Colors.indigo),
               const SizedBox(height: 12),
               const Text('Parking System',
-                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo)),
               const SizedBox(height: 32),
+
+              // Name
               TextField(
                 controller: _nameCtrl,
                 decoration: const InputDecoration(
@@ -76,21 +107,45 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Password
               TextField(
                 controller: _passwordCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: _obscure,
+                decoration: InputDecoration(
                   labelText: 'Password',
-                  prefixIcon: Icon(Icons.lock),
-                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.lock),
+                  border: const OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white,
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _obscure = !_obscure),
+                  ),
                 ),
                 onSubmitted: (_) => _login(),
               ),
               const SizedBox(height: 8),
+
               if (_error.isNotEmpty)
-                Text(_error, style: const TextStyle(color: Colors.red)),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_error,
+                          style: const TextStyle(color: Colors.red))),
+                    ],
+                  ),
+                ),
+
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
