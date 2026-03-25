@@ -19,6 +19,21 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
+  static Future<Map<String, dynamic>> changePassword(
+      String name, String oldPassword, String newPassword) async {
+    final res = await http.post(
+      Uri.parse(scriptUrl),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "action":       "changePassword",
+        "name":         name,
+        "old_password": hashPassword(oldPassword),
+        "new_password": hashPassword(newPassword),
+      }),
+    );
+    return jsonDecode(res.body);
+  }
+
   static Future<Map<String, dynamic>> resetPassword(String name, String newPassword) async {
     final res = await http.post(
       Uri.parse(scriptUrl),

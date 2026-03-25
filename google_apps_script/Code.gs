@@ -10,6 +10,7 @@ function doPost(e) {
   if (action === "getDashboard") return getDashboard();
   if (action === "assignNumber") return assignNumber(data);
   if (action === "resetPassword") return resetPassword(data);
+  if (action === "changePassword") return changePassword(data);
 
   return respond({ success: false, message: "Unknown action" });
 }
@@ -88,6 +89,28 @@ function assignNumber(data) {
     }
   }
   return respond({ success: false, message: "Employee not found" });
+}
+
+// ── CHANGE PASSWORD (Employee self) ───────────────────
+function changePassword(data) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("users");
+  var rows  = sheet.getDataRange().getValues();
+
+  for (var i = 1; i < rows.length; i++) {
+    var name       = rows[i][0].toString().trim();
+    var storedHash = rows[i][1].toString().trim();
+
+    if (name === data.name.trim()) {
+      // Verify old password
+      if (storedHash !== data.old_password.trim()) {
+        return respond({ success: false, message: "Current password is incorrect" });
+      }
+      // Save new hashed password
+      sheet.getRange(i + 1, 2).setValue(data.new_password);
+      return respond({ success: true, message: "Password changed successfully" });
+    }
+  }
+  return respond({ success: false, message: "User not found" });
 }
 
 // ── RESET PASSWORD (Admin) ────────────────────────────

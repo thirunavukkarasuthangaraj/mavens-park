@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
 import 'login_screen.dart';
+import 'change_password_screen.dart';
 
 class EmployeeScreen extends StatefulWidget {
   final String userName;
@@ -52,7 +53,17 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(onPressed: _logout, icon: const Icon(Icons.logout))
+          IconButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChangePasswordScreen(userName: widget.userName),
+              ),
+            ),
+            icon: const Icon(Icons.key),
+            tooltip: 'Change Password',
+          ),
+          IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
         ],
       ),
       backgroundColor: Colors.indigo.shade50,
