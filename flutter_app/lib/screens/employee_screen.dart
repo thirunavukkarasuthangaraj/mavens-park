@@ -18,6 +18,14 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
   bool _loading         = false;
   bool _parkedToday     = false;
   String _parkedVehicle = '';
+  String _parkedTime    = '';
+
+  String _nowTime() {
+    final now = DateTime.now();
+    final h   = now.hour.toString().padLeft(2, '0');
+    final m   = now.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 
   Future<void> _park() async {
     final vehicleNo = _vehicleCtrl.text.trim().toUpperCase();
@@ -28,7 +36,11 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
     setState(() => _loading = false);
     if (result['success'] == true) {
       showSuccess('Vehicle parked successfully');
-      setState(() { _parkedToday = true; _parkedVehicle = vehicleNo; });
+      setState(() {
+        _parkedToday   = true;
+        _parkedVehicle = vehicleNo;
+        _parkedTime    = _nowTime();
+      });
       _vehicleCtrl.clear();
     } else {
       showError(result['message'] ?? 'Failed to park vehicle');
@@ -117,20 +129,48 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle_rounded,
-                                color: Colors.green, size: 30),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text('Parked Today',
-                                    style: TextStyle(fontWeight: FontWeight.bold,
-                                        color: Colors.green, fontSize: 14)),
-                                Text('Vehicle: $_parkedVehicle',
-                                    style: TextStyle(
-                                        color: Colors.green.shade700,
-                                        fontSize: 12)),
-                              ],
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade100,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.check_circle_rounded,
+                                  color: Colors.green, size: 26),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Successfully Parked!',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.green,
+                                          fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  Row(children: [
+                                    const Icon(Icons.directions_car,
+                                        size: 13, color: Colors.green),
+                                    const SizedBox(width: 4),
+                                    Text(_parkedVehicle,
+                                        style: TextStyle(
+                                            color: Colors.green.shade700,
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600)),
+                                  ]),
+                                  const SizedBox(height: 2),
+                                  Row(children: [
+                                    const Icon(Icons.access_time,
+                                        size: 13, color: Colors.green),
+                                    const SizedBox(width: 4),
+                                    Text('Parked at $_parkedTime',
+                                        style: TextStyle(
+                                            color: Colors.green.shade600,
+                                            fontSize: 12)),
+                                  ]),
+                                ],
+                              ),
                             ),
                           ],
                         ),
