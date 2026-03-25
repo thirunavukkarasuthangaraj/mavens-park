@@ -1,7 +1,9 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api_service.dart';
 import '../utils/toast.dart';
 import '../theme.dart';
@@ -25,6 +27,19 @@ class _AdminScreenState extends State<AdminScreen>
   List<dynamic> _notParked = [];
   String _error        = '';
   DateTime _selectedDate = DateTime.now();
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  List<dynamic> get _filteredParked => _parked.where(_matchSearch).toList();
+  List<dynamic> get _filteredNotParked => _notParked.where(_matchSearch).toList();
+
+  bool _matchSearch(dynamic emp) {
+    if (_searchQuery.isEmpty) return true;
+    final q = _searchQuery.toLowerCase();
+    return (emp['name']?.toString().toLowerCase().contains(q) ?? false) ||
+           (emp['emp_code']?.toString().toLowerCase().contains(q) ?? false) ||
+           (emp['number']?.toString().toLowerCase().contains(q) ?? false);
+  }
 
   @override
   void initState() {
@@ -35,6 +50,20 @@ class _AdminScreenState extends State<AdminScreen>
 
   @override
   void dispose() { _tabController.dispose(); super.dispose(); }
+
+  String _toAmPm(String time) {
+    try {
+      final parts = time.split(':');
+      int hour = int.parse(parts[0]);
+      final min = parts[1];
+      final period = hour >= 12 ? 'PM' : 'AM';
+      if (hour > 12) hour -= 12;
+      if (hour == 0) hour = 12;
+      return '$hour:$min $period';
+    } catch (_) {
+      return time;
+    }
+  }
 
   String _formatDate(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -109,12 +138,9 @@ class _AdminScreenState extends State<AdminScreen>
       buffer.writeln('');
       buffer.writeln('Total: $_total | Parked: $_parkedCount | Absent: $_notParkedCount');
 
-      final dir      = await getTemporaryDirectory();
-      final file     = File('${dir.path}/parking_$dateStr.csv');
-      await file.writeAsString(buffer.toString());
-
+      final bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
       await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/csv')],
+        [XFile.fromData(bytes, name: 'parking_$dateStr.csv', mimeType: 'text/csv')],
         subject: 'Parking Report - $dateStr',
       );
     } catch (_) {
@@ -161,6 +187,17 @@ class _AdminScreenState extends State<AdminScreen>
             onPressed: () async {
               final number = ctrl.text.trim();
               if (number.isEmpty) return;
+              // Check if number already assigned to someone else
+              final allEmps = [..._parked, ..._notParked];
+              final conflict = allEmps.firstWhere(
+                (e) => e['number']?.toString() == number &&
+                        e['emp_code']?.toString() != empCode,
+                orElse: () => null,
+              );
+              if (conflict != null) {
+                showError('Number $number already assigned to ${conflict['name']}');
+                return;
+              }
               Navigator.pop(context);
               final result = await ApiService.assignNumber(empCode, number);
               if (result['success'] == true) {
@@ -178,66 +215,35 @@ class _AdminScreenState extends State<AdminScreen>
   }
 
   // ── Reset Password ─────────────────────────────────────
-  void _showResetPasswordDialog(String empName) {
-    final newCtrl  = TextEditingController();
-    final confCtrl = TextEditingController();
-    bool obscure   = true;
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setS) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(children: [
-            Icon(Icons.lock_reset, color: AppColors.orange),
-            SizedBox(width: 8),
-            Text('Reset Password',
-                style: TextStyle(color: AppColors.textDark, fontSize: 18)),
-          ]),
-          content: Column(mainAxisSize: MainAxisSize.min, children: [
-            _dialogLabel(empName),
-            const SizedBox(height: 14),
-            _passField('New Password', newCtrl, obscure,
-                () => setS(() => obscure = !obscure)),
-            const SizedBox(height: 10),
-            _passField('Confirm Password', confCtrl, obscure,
-                () => setS(() => obscure = !obscure)),
-          ]),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.textGrey))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.orange,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-              onPressed: () async {
-                final np = newCtrl.text.trim();
-                final cp = confCtrl.text.trim();
-                if (np.isEmpty) { showError('Enter a password'); return; }
-                if (np.length < 4) { showError('Min 4 characters'); return; }
-                if (np != cp) { showError('Passwords do not match'); return; }
-                Navigator.pop(ctx);
-                final result = await ApiService.resetPassword(empName, np);
-                if (result['success'] == true) {
-                  showSuccess('Password reset for $empName');
-                } else {
-                  showError(result['message'] ?? 'Failed');
-                }
-              },
-              child: const Text('Reset', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _showResetPasswordDialog(String empName) async {
+    showInfo('Resetting password...');
+    try {
+      final result = await ApiService.resetPassword(empName, 'Mavens@123');
+      if (result['success'] == true) {
+        showSuccess('Password reset for $empName');
+      } else {
+        showError(result['message'] ?? 'Failed to reset password');
+      }
+    } catch (e) {
+      showError('Error: $e');
+    }
   }
 
-  void _logout() => Navigator.pushReplacement(context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()));
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    Navigator.pushReplacement(context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgSoft,
-      body: SafeArea(
+      body: PopScope(
+        canPop: false,
+        child: SafeArea(
         child: Column(
           children: [
             // ── Navy header ────────────────────────────────
@@ -377,6 +383,37 @@ class _AdminScreenState extends State<AdminScreen>
               ),
             ),
 
+            // ── Search bar ─────────────────────────────────
+            Container(
+              color: AppColors.navy,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'Search by name, emp code or number...',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white54, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white54, size: 18),
+                          onPressed: () => setState(() {
+                            _searchCtrl.clear();
+                            _searchQuery = '';
+                          }),
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.1),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+
             // ── Summary cards ──────────────────────────────
             Container(
               color: AppColors.navy,
@@ -417,7 +454,7 @@ class _AdminScreenState extends State<AdminScreen>
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 
@@ -446,21 +483,23 @@ class _AdminScreenState extends State<AdminScreen>
   }
 
   Widget _parkedList() {
+    final list = _filteredParked;
     if (_parked.isEmpty) return _emptyState(
         'No one parked on ${_displayDate(_selectedDate)}',
         Icons.directions_car_outlined);
+    if (list.isEmpty) return _emptyState('No results for "$_searchQuery"', Icons.search_off);
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _parked.length,
+      itemCount: list.length,
       itemBuilder: (_, i) {
-        final emp    = _parked[i];
+        final emp    = list[i];
         final number = emp['number']?.toString() ?? '';
         return _empCard(
           empCode:  emp['emp_code']?.toString() ?? '',
           number:   number,
           name:     emp['name'] ?? '',
           sub:      'Vehicle: ${emp['vehicle_no'] ?? ''}',
-          badge:    emp['time'] ?? '',
+          badge:    _toAmPm(emp['time'] ?? ''),
           badgeColor: Colors.green,
           isParked: true,
           onAssign: () => _showAssignDialog(
@@ -472,14 +511,16 @@ class _AdminScreenState extends State<AdminScreen>
   }
 
   Widget _notParkedList() {
+    final list = _filteredNotParked;
     if (_notParked.isEmpty) return _emptyState(
         'All employees parked on ${_displayDate(_selectedDate)}! 🎉',
         Icons.check_circle_outline);
+    if (list.isEmpty) return _emptyState('No results for "$_searchQuery"', Icons.search_off);
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _notParked.length,
+      itemCount: list.length,
       itemBuilder: (_, i) {
-        final emp    = _notParked[i];
+        final emp    = list[i];
         final number = emp['number']?.toString() ?? '';
         return _empCard(
           empCode:  emp['emp_code']?.toString() ?? '',
@@ -535,23 +576,7 @@ class _AdminScreenState extends State<AdminScreen>
             Text(name, style: const TextStyle(fontWeight: FontWeight.bold,
                 fontSize: 15, color: AppColors.textDark)),
             const SizedBox(height: 2),
-            Row(children: [
-              if (empCode.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.navy.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(empCode,
-                      style: const TextStyle(fontSize: 10,
-                          color: AppColors.navy, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 6),
-              ],
-              Flexible(child: Text(sub,
-                  style: const TextStyle(fontSize: 12, color: AppColors.textGrey))),
-            ]),
+            Text(sub, style: const TextStyle(fontSize: 12, color: AppColors.textGrey)),
           ]),
         ),
         const SizedBox(width: 6),
@@ -565,9 +590,17 @@ class _AdminScreenState extends State<AdminScreen>
           child: Text(badge, style: TextStyle(fontSize: 11, color: badgeColor,
               fontWeight: FontWeight.bold)),
         ),
-        const SizedBox(width: 6),
-        _iconBtn(Icons.tag, AppColors.navy, onAssign),
         const SizedBox(width: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppColors.navy.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(empCode, style: const TextStyle(fontSize: 11,
+              color: AppColors.navy, fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(width: 6),
         _iconBtn(Icons.lock_reset, AppColors.orange, onReset),
       ]),
     );
@@ -608,24 +641,4 @@ class _AdminScreenState extends State<AdminScreen>
         ]),
       );
 
-  Widget _passField(String label, TextEditingController ctrl,
-      bool obscure, VoidCallback toggle) {
-    return TextField(
-      controller: ctrl,
-      obscureText: obscure,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.lock_outline, color: AppColors.navy),
-        suffixIcon: IconButton(
-          icon: Icon(obscure ? Icons.visibility_outlined
-              : Icons.visibility_off_outlined, color: Colors.grey, size: 18),
-          onPressed: toggle,
-        ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: AppColors.navy, width: 2)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      ),
-    );
-  }
 }

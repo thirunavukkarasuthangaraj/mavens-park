@@ -63,7 +63,7 @@
     },
     {
       "name": "fluttertoast",
-      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/fluttertoast-8.2.8",
+      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/fluttertoast-9.0.0",
       "packageUri": "lib/",
       "languageVersion": "2.12"
     },
@@ -153,13 +153,13 @@
     },
     {
       "name": "share_plus",
-      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/share_plus-9.0.0",
+      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/share_plus-12.0.1",
       "packageUri": "lib/",
-      "languageVersion": "3.3"
+      "languageVersion": "3.4"
     },
     {
       "name": "share_plus_platform_interface",
-      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/share_plus_platform_interface-4.0.0",
+      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/share_plus_platform_interface-6.1.0",
       "packageUri": "lib/",
       "languageVersion": "2.18"
     },
@@ -273,9 +273,9 @@
     },
     {
       "name": "web",
-      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/web-0.5.1",
+      "rootUri": "file:///C:/Users/MVNLA/AppData/Local/Pub/Cache/hosted/pub.dev/web-1.1.1",
       "packageUri": "lib/",
-      "languageVersion": "3.3"
+      "languageVersion": "3.4"
     },
     {
       "name": "win32",

@@ -6,10 +6,12 @@ import 'employee_screen.dart';
 
 class ForceChangePasswordScreen extends StatefulWidget {
   final String userName;
+  final String empCode;
   final String currentHashedPassword;
   const ForceChangePasswordScreen({
     super.key,
     required this.userName,
+    this.empCode = '',
     required this.currentHashedPassword,
   });
   @override
@@ -29,7 +31,8 @@ class _ForceChangePasswordScreenState
     final np   = _newCtrl.text.trim();
     final conf = _confCtrl.text.trim();
     if (np.isEmpty || conf.isEmpty) { showError('Fill all fields'); return; }
-    if (np.length < 4) { showError('Min 4 characters'); return; }
+    if (np.length < 4) { showError('Minimum 4 values required'); return; }
+    if (np.length > 10) { showError('Maximum 10 values allowed'); return; }
     if (np != conf)    { showError('Passwords do not match'); return; }
 
     setState(() => _loading = true);
@@ -43,7 +46,7 @@ class _ForceChangePasswordScreenState
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(
-            builder: (_) => EmployeeScreen(userName: widget.userName)),
+            builder: (_) => EmployeeScreen(userName: widget.userName, empCode: widget.empCode)),
         (_) => false,
       );
     } else {
@@ -132,7 +135,7 @@ class _ForceChangePasswordScreenState
                   const Divider(height: 28),
 
                   _passField('New Password', _newCtrl, _obscureNew,
-                      () => setState(() => _obscureNew = !_obscureNew)),
+                      () => setState(() => _obscureNew = !_obscureNew), showHint: true),
                   const SizedBox(height: 14),
                   _passField('Confirm Password', _confCtrl, _obscureConf,
                       () => setState(() => _obscureConf = !_obscureConf)),
@@ -169,12 +172,13 @@ class _ForceChangePasswordScreenState
   }
 
   Widget _passField(String label, TextEditingController ctrl,
-      bool obscure, VoidCallback toggle) {
+      bool obscure, VoidCallback toggle, {bool showHint = false}) {
     return TextField(
       controller: ctrl,
       obscureText: obscure,
       decoration: InputDecoration(
         labelText: label,
+        helperText: showHint ? 'Minimum 4 values' : null,
         prefixIcon: const Icon(Icons.lock_outline, color: AppColors.navy),
         suffixIcon: IconButton(
           icon: Icon(obscure ? Icons.visibility_outlined

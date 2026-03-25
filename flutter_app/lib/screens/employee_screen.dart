@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api_service.dart';
 import '../utils/toast.dart';
 import '../theme.dart';
@@ -16,9 +17,36 @@ class EmployeeScreen extends StatefulWidget {
 class _EmployeeScreenState extends State<EmployeeScreen> {
   final _vehicleCtrl    = TextEditingController();
   bool _loading         = false;
+  bool _checkingParked  = true;
   bool _parkedToday     = false;
   String _parkedVehicle = '';
   String _parkedTime    = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAlreadyParked();
+  }
+
+  Future<void> _checkAlreadyParked() async {
+    try {
+      final result = await ApiService.getDashboard();
+      if (result['success'] == true) {
+        final parked = result['parked'] as List<dynamic>? ?? [];
+        for (var emp in parked) {
+          if (emp['emp_code']?.toString() == widget.empCode) {
+            setState(() {
+              _parkedToday   = true;
+              _parkedVehicle = emp['vehicle_no']?.toString() ?? '';
+              _parkedTime    = emp['time']?.toString() ?? '';
+            });
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+    setState(() => _checkingParked = false);
+  }
 
   String _nowTime() {
     final now = DateTime.now();
@@ -47,12 +75,19 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
     }
   }
 
-  void _logout() => Navigator.pushReplacement(context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()));
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+    Navigator.pushReplacement(context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: AppColors.bgSoft,
       body: SafeArea(
         child: Column(
@@ -113,7 +148,9 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
             ),
 
             Expanded(
-              child: SingleChildScrollView(
+              child: _checkingParked
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.navy))
+                  : SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
@@ -178,8 +215,8 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
                       const SizedBox(height: 16),
                     ],
 
-                    // ── Main park card ────────────────────
-                    Container(
+                    // ── Main park card (hidden when already parked) ──
+                    if (!_parkedToday) Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -221,7 +258,7 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
                                 fontWeight: FontWeight.bold, letterSpacing: 3),
                             decoration: InputDecoration(
                               labelText: 'Vehicle Number',
-                              hintText: 'ABC - 1234',
+                              hintText: 'TN00 B0000',
                               hintStyle: TextStyle(
                                   color: Colors.grey.shade300, letterSpacing: 2,
                                   fontWeight: FontWeight.normal, fontSize: 18),
@@ -278,6 +315,7 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
           ],
         ),
       ),
-    );
+    ));
   }
 }
+

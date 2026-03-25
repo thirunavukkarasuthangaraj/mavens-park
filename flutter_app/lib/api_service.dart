@@ -1,24 +1,67 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'utils/hash.dart';
 
 const String scriptUrl =
-    "https://script.google.com/macros/s/AKfycbw3HO17yO9RdGfnmYSsENo-RDccpHEAhgXwt0iYUD8/exec";
+    "https://script.google.com/macros/s/AKfycbxCSdtFgIjs8kCwELMOjxdaEe3SPHv6tNHU35H7n2poBIRrLFMX442T_EXVeB5llmXp/exec";
 
-const _timeout = Duration(seconds: 20);
+const _timeout = Duration(seconds: 30);
 
 class ApiService {
-  // ── Safe GET — no CORS issues in Chrome ────────────────
+  static http.Client? _client;
+
+  static http.Client _getClient() {
+    _client ??= http.Client();
+    return _client!;
+  }
+
   static Future<Map<String, dynamic>> _get(Map<String, dynamic> body) async {
     try {
       final encoded = Uri.encodeComponent(jsonEncode(body));
-      final uri     = Uri.parse('$scriptUrl?data=$encoded');
-      final res     = await http.get(uri).timeout(_timeout);
-      final decoded = jsonDecode(res.body);
-      if (decoded is Map<String, dynamic>) return decoded;
-      return {"success": false, "message": "Unexpected response"};
+      final uri = Uri.parse('$scriptUrl?data=$encoded');
+
+      http.Response res;
+      if (kIsWeb) {
+        // Web: use simple get (browser handles CORS/redirect)
+        res = await http.get(uri).timeout(_timeout);
+      } else {
+        // Mobile: use persistent client for better redirect handling
+        res = await _getClient().get(uri).timeout(_timeout);
+      }
+
+      if (res.statusCode != 200) {
+        return {"success": false, "message": "Server error (${res.statusCode})"};
+      }
+
+      final body2 = res.body.trim();
+      if (body2.isEmpty) {
+        return {"success": false, "message": "Empty response from server"};
+      }
+
+      try {
+        final decoded = jsonDecode(body2);
+        if (decoded is Map<String, dynamic>) return decoded;
+        return {"success": false, "message": "Unexpected response format"};
+      } catch (_) {
+        // Response is not JSON — likely an HTML error page
+        return {"success": false, "message": "Server returned invalid response. Please try again."};
+      }
     } catch (e) {
-      return {"success": false, "message": "Connection error. Check your internet."};
+      final msg = e.toString();
+      if (msg.contains('TimeoutException') || msg.contains('timed out')) {
+        return {"success": false, "message": "Request timed out. Check your internet and try again."};
+      }
+      if (msg.contains('SocketException') || msg.contains('Connection refused')) {
+        return {"success": false, "message": "No internet connection. Please check your network."};
+      }
+      if (msg.contains('HandshakeException') || msg.contains('certificate')) {
+        return {"success": false, "message": "SSL error. Please update the app."};
+      }
+      if (kIsWeb) {
+        return {"success": false, "message": "Connection error. Ensure script is deployed for 'Anyone'."};
+      }
+      return {"success": false, "message": "Connection error: $msg"};
     }
   }
 

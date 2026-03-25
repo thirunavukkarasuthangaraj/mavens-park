@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -L -w \"\\nTime: %{time_total}s\\nStatus: %{http_code}\\n\" \"https://script.google.com/macros/s/AKfycbxCSdtFgIjs8kCwELMOjxdaEe3SPHv6tNHU35H7n2poBIRrLFMX442T_EXVeB5llmXp/exec?data=%7B%22action%22%3A%22login%22%2C%22code%22%3A%22test%22%2C%22password%22%3A%22test%22%7D\")",
+      "Bash(test_concurrent_logins.bat)",
+      "Bash(for i in {1..10})",
+      "Bash(do)",
+      "Bash(echo \"Request $i:\")",
+      "Bash(time curl -s -L \"https://script.google.com/macros/s/AKfycbxCSdtFgIjs8kCwELMOjxdaEe3SPHv6tNHU35H7n2poBIRrLFMX442T_EXVeB5llmXp/exec?data=%7B%22action%22%3A%22login%22%2C%22code%22%3A%22101%22%2C%22password%22%3A%22db776d50f3d9ce6e8b54cc86d137c2d9c20fd5fc%22%7D\")",
+      "Bash(done)"
+    ],
+    "deny": []
+  }
+}

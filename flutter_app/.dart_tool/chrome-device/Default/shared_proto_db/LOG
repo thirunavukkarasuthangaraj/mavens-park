@@ -1,2 +1,7 @@
-2026/03/26-00:14:36.959 1558 Creating DB C:\Users\MVNLA\AppData\Local\Temp\flutter_tools.5f1dc7cb\flutter_tools_chrome_device.cb710cdf\Default\shared_proto_db since it was missing.
-2026/03/26-00:14:36.973 1558 Reusing MANIFEST C:\Users\MVNLA\AppData\Local\Temp\flutter_tools.5f1dc7cb\flutter_tools_chrome_device.cb710cdf\Default\shared_proto_db/MANIFEST-000001
+2026/03/26-02:51:36.300 45a0 Reusing MANIFEST C:\Users\MVNLA\AppData\Local\Temp\flutter_tools.9312a260\flutter_tools_chrome_device.6c79c42a\Default\shared_proto_db/MANIFEST-000001
+2026/03/26-02:51:36.302 45a0 Recovering log #6
+2026/03/26-02:51:36.303 45a0 Reusing old log C:\Users\MVNLA\AppData\Local\Temp\flutter_tools.9312a260\flutter_tools_chrome_device.6c79c42a\Default\shared_proto_db/000006.log 
+2026/03/26-02:51:36.304 45a0 Delete type=0 #3
+2026/03/26-02:51:36.304 45a0 Delete type=0 #4
+2026/03/26-02:51:36.304 45a0 Delete type=2 #5
+2026/03/26-02:51:36.304 45a0 Delete type=2 #7

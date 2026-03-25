@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../api_service.dart';
 import '../utils/hash.dart';
 import '../utils/toast.dart';
@@ -14,13 +16,13 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _codeCtrl     = TextEditingController();
+  final _codeCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
-  bool _loading       = false;
-  bool _obscure       = true;
+  bool _loading = false;
+  bool _obscure = true;
 
   Future<void> _login() async {
-    final code     = _codeCtrl.text.trim();
+    final code = _codeCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
     if (code.isEmpty || password.isEmpty) {
       showError('Please enter employee code and password');
@@ -32,23 +34,37 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (result['success'] == true) {
       if (!mounted) return;
-      final role       = result['role'];
+      final role = result['role'];
       final mustChange = result['must_change'] == true;
+      final name = result['name'] ?? '';
+      final empCode = result['emp_code'] ?? '';
+
+      // Save session
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('role', role);
+      await prefs.setString('name', name);
+      await prefs.setString('emp_code', empCode);
+
+      if (!mounted) return;
       if (role == 'admin') {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => const AdminScreen()));
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const AdminScreen()));
       } else if (mustChange) {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => ForceChangePasswordScreen(
-              userName: result['name'],
-              currentHashedPassword: hashPassword(password),
-            )));
+        Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+                builder: (_) => ForceChangePasswordScreen(
+                      userName: name,
+                      currentHashedPassword: hashPassword(password),
+                    )));
       } else {
-        Navigator.pushReplacement(context,
-            MaterialPageRoute(builder: (_) => EmployeeScreen(
-              userName: result['name'],
-              empCode:  result['emp_code'] ?? '',
-            )));
+        Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+                builder: (_) => EmployeeScreen(
+                      userName: name,
+                      empCode: empCode,
+                    )));
       }
     } else {
       showError(result['message'] ?? 'Login failed');
@@ -78,7 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     // Logo circle
                     Container(
-                      width: 84, height: 84,
+                      width: 84,
+                      height: 84,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.12),
                         shape: BoxShape.circle,
@@ -89,8 +106,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           size: 46, color: Colors.white),
                     ),
                     const SizedBox(height: 16),
-                    const Text('Mavens Park',
-                        style: TextStyle(fontSize: 26,
+                    const Text('Mavens-i Parking',
+                        style: TextStyle(
+                            fontSize: 26,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                             letterSpacing: 0.5)),
@@ -105,7 +123,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: const Text(
                         'Mavens-i Softech Solution Pvt Ltd',
-                        style: TextStyle(fontSize: 11,
+                        style: TextStyle(
+                            fontSize: 11,
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.3),
@@ -122,21 +141,32 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Sign In',
-                        style: TextStyle(fontSize: 22,
+                        style: TextStyle(
+                            fontSize: 22,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textDark)),
                     const SizedBox(height: 4),
                     const Text('Enter your employee code and password',
-                        style: TextStyle(fontSize: 13,
-                            color: AppColors.textGrey)),
+                        style:
+                            TextStyle(fontSize: 13, color: AppColors.textGrey)),
                     const SizedBox(height: 28),
 
                     // Employee Code field
-                    _inputField(
+                    TextField(
                       controller: _codeCtrl,
-                      label: 'Employee Code',
-                      hint: 'e.g. 101',
-                      icon: Icons.badge_outlined,
+                      maxLength: 5,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [
+                        LengthLimitingTextInputFormatter(5),
+                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+                        TextInputFormatter.withFunction((old, new_) =>
+                            new_.copyWith(text: new_.text.toUpperCase())),
+                      ],
+                      decoration: _inputDecoration(
+                        label: 'Employee Code',
+                        hint: 'M0123',
+                        icon: Icons.badge_outlined,
+                      ).copyWith(counterText: ''),
                     ),
                     const SizedBox(height: 14),
 
@@ -144,6 +174,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextField(
                       controller: _passwordCtrl,
                       obscureText: _obscure,
+                      maxLength: 10,
+                      inputFormatters: [LengthLimitingTextInputFormatter(10)],
                       onSubmitted: (_) => _login(),
                       decoration: _inputDecoration(
                         label: 'Password',
@@ -151,14 +183,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         icon: Icons.lock_outline,
                         suffix: IconButton(
                           icon: Icon(
-                            _obscure ? Icons.visibility_outlined
+                            _obscure
+                                ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: AppColors.textGrey, size: 20,
+                            color: AppColors.textGrey,
+                            size: 20,
                           ),
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
+                          onPressed: () => setState(() => _obscure = !_obscure),
                         ),
-                      ),
+                      ).copyWith(counterText: ''),
                     ),
                     const SizedBox(height: 28),
 
@@ -176,14 +209,17 @@ class _LoginScreenState extends State<LoginScreen> {
                           elevation: 3,
                         ),
                         child: _loading
-                            ? const SizedBox(width: 22, height: 22,
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
                                 child: CircularProgressIndicator(
                                     color: Colors.white, strokeWidth: 2.5))
                             : const Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text('Sign In',
-                                      style: TextStyle(fontSize: 16,
+                                      style: TextStyle(
+                                          fontSize: 16,
                                           fontWeight: FontWeight.bold)),
                                   SizedBox(width: 8),
                                   Icon(Icons.arrow_forward_rounded, size: 18),
@@ -198,9 +234,9 @@ class _LoginScreenState extends State<LoginScreen> {
               // ── Footer ─────────────────────────────────
               Padding(
                 padding: const EdgeInsets.only(bottom: 24),
-                child: Text('© 2025 Mavens-i Softech Solution Pvt Ltd',
-                    style: TextStyle(fontSize: 11,
-                        color: Colors.grey.shade400)),
+                child: Text('©2026 Mavens-i Softech Solution Pvt Ltd',
+                    style:
+                        TextStyle(fontSize: 11, color: Colors.grey.shade400)),
               ),
             ],
           ),

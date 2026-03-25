@@ -24,7 +24,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final np   = _newCtrl.text.trim();
     final conf = _confCtrl.text.trim();
     if (old.isEmpty || np.isEmpty || conf.isEmpty) { showError('Fill all fields'); return; }
-    if (np.length < 4) { showError('Min 4 characters'); return; }
+    if (np.length < 4) { showError('Minimum 4 values required'); return; }
+    if (np.length > 10) { showError('Maximum 10 values allowed'); return; }
     if (np != conf)    { showError('Passwords do not match'); return; }
     if (old == np)     { showError('New password must be different'); return; }
 
@@ -100,7 +101,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     () => setState(() => _obscureOld = !_obscureOld)),
                 const SizedBox(height: 14),
                 _passField('New Password', _newCtrl, _obscureNew,
-                    () => setState(() => _obscureNew = !_obscureNew)),
+                    () => setState(() => _obscureNew = !_obscureNew), showHint: true),
                 const SizedBox(height: 14),
                 _passField('Confirm New Password', _confCtrl, _obscureConf,
                     () => setState(() => _obscureConf = !_obscureConf)),
@@ -135,12 +136,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   }
 
   Widget _passField(String label, TextEditingController ctrl,
-      bool obscure, VoidCallback toggle) {
+      bool obscure, VoidCallback toggle, {bool showHint = false}) {
     return TextField(
       controller: ctrl,
       obscureText: obscure,
       decoration: InputDecoration(
         labelText: label,
+        helperText: showHint ? 'Minimum 4 values' : null,
         prefixIcon: const Icon(Icons.lock_outline, color: AppColors.navy),
         suffixIcon: IconButton(
           icon: Icon(obscure ? Icons.visibility_outlined
