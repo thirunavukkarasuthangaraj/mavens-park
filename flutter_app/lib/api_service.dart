@@ -27,16 +27,18 @@ class ApiService {
       _post({"action": "login", "code": code, "password": hashPassword(password)});
 
   // ── PARK VEHICLE ───────────────────────────────────────────
-  static Future<Map<String, dynamic>> parkVehicle(String userName, String vehicleNo) =>
-      _post({"action": "parkVehicle", "user_name": userName, "vehicle_no": vehicleNo});
+  static Future<Map<String, dynamic>> parkVehicle(
+          String empCode, String userName, String vehicleNo) =>
+      _post({"action": "parkVehicle", "emp_code": empCode,
+             "user_name": userName, "vehicle_no": vehicleNo});
 
   // ── TODAY LOGS ─────────────────────────────────────────────
   static Future<Map<String, dynamic>> getTodayLogs() =>
       _post({"action": "getTodayLogs"});
 
   // ── DASHBOARD ──────────────────────────────────────────────
-  static Future<Map<String, dynamic>> getDashboard() =>
-      _post({"action": "getDashboard"});
+  static Future<Map<String, dynamic>> getDashboard({String? date}) =>
+      _post({"action": "getDashboard", if (date != null) "date": date});
 
   // ── ASSIGN NUMBER ──────────────────────────────────────────
   static Future<Map<String, dynamic>> assignNumber(String name, String number) =>

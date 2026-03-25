@@ -1,57 +1,59 @@
-var SHEET_ID = "YOUR_GOOGLE_SHEET_ID_HERE"; // Replace with your Sheet ID
+var SHEET_ID = "YOUR_GOOGLE_SHEET_ID_HERE";
 
-// users columns: A=name, B=password, C=role, D=number, E=must_change
+// ── Single sheet: "employees" ───────────────────────────
+// Columns: A=emp_code, B=name, C=email, D=password, E=role, F=number, G=must_change
+// parking_log sheet: A=emp_code, B=name, C=vehicle_no, D=timestamp, E=date
 
 function doPost(e) {
   var data = JSON.parse(e.postData.contents);
   var action = data.action;
-
   if (action === "login")          return login(data);
   if (action === "parkVehicle")    return parkVehicle(data);
-  if (action === "getTodayLogs")   return getTodayLogs();
-  if (action === "getDashboard")   return getDashboard();
+  if (action === "getDashboard")   return getDashboard(data);
   if (action === "assignNumber")   return assignNumber(data);
   if (action === "resetPassword")  return resetPassword(data);
   if (action === "changePassword") return changePassword(data);
-
   return respond({ success: false, message: "Unknown action" });
 }
 
-// ── HASH HELPER ────────────────────────────────────────
+// ── SHA-256 hash ────────────────────────────────────────
 function sha256(text) {
-  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
   return bytes.map(function(b) {
     return ('0' + (b & 0xFF).toString(16)).slice(-2);
   }).join('');
 }
 
-// ── LOGIN ──────────────────────────────────────────────
-// Employees login with their code (number column D)
-// Admin logs in with name (column A) as code
+// ── LOGIN ───────────────────────────────────────────────
+// employees columns: A=emp_code, B=name, C=email, D=password, E=role, F=number, G=must_change
 function login(data) {
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("users");
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("employees");
   var rows  = sheet.getDataRange().getValues();
-
   var inputCode = data.code.toString().trim();
   var inputPass = data.password.toString().trim();
 
   for (var i = 1; i < rows.length; i++) {
-    var name       = rows[i][0].toString().trim();
-    var storedHash = rows[i][1].toString().trim();
-    var role       = rows[i][2].toString().trim();
-    var empCode    = rows[i][3].toString().trim(); // column D = number/code
-    var mustChange = rows[i][4].toString().trim().toUpperCase(); // column E
+    var empCode    = rows[i][0].toString().trim(); // A
+    var name       = rows[i][1].toString().trim(); // B
+    var email      = rows[i][2].toString().trim(); // C
+    var storedHash = rows[i][3].toString().trim(); // D
+    var role       = rows[i][4].toString().trim(); // E
+    var number     = rows[i][5].toString().trim(); // F
+    var mustChange = rows[i][6].toString().trim().toUpperCase(); // G
 
-    // Match by employee code (column D) for employees
-    // Match by name (column A) for admin (admin has no number)
-    var codeMatch = (empCode !== "" && empCode === inputCode) ||
-                    (role === "admin" && name.toLowerCase() === inputCode.toLowerCase());
+    // Match by emp_code for employees, or by name for admin (no code)
+    var match = empCode === inputCode ||
+                (role === "admin" && name.toLowerCase() === inputCode.toLowerCase());
 
-    if (codeMatch && storedHash === inputPass) {
+    if (match && storedHash === inputPass) {
       return respond({
         success:     true,
+        emp_code:    empCode,
         name:        name,
+        email:       email,
         role:        role,
+        number:      number,
         must_change: mustChange === "TRUE"
       });
     }
@@ -59,113 +61,51 @@ function login(data) {
   return respond({ success: false, message: "Invalid code or password" });
 }
 
-// ── PARK VEHICLE ───────────────────────────────────────
+// ── PARK VEHICLE ────────────────────────────────────────
 function parkVehicle(data) {
   var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("parking_log");
-
   var now       = new Date();
   var timestamp = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm:ss");
   var date      = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd");
-
-  sheet.appendRow([data.user_name, data.vehicle_no, timestamp, date]);
+  sheet.appendRow([data.emp_code, data.user_name, data.vehicle_no, timestamp, date]);
   return respond({ success: true, message: "Vehicle parked successfully" });
 }
 
-// ── GET TODAY LOGS (Admin) ─────────────────────────────
-function getTodayLogs() {
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("parking_log");
-  var rows  = sheet.getDataRange().getValues();
-
-  var now   = new Date();
-  var today = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd");
-
-  var logs = [];
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][3].toString() === today) {
-      logs.push({ user_name: rows[i][0], vehicle_no: rows[i][1], timestamp: rows[i][2] });
-    }
-  }
-  return respond({ success: true, count: logs.length, logs: logs });
-}
-
-// ── ASSIGN NUMBER TO EMPLOYEE (Admin) ─────────────────
-function assignNumber(data) {
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("users");
-  var rows  = sheet.getDataRange().getValues();
-
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0].toString().trim() === data.name.trim()) {
-      sheet.getRange(i + 1, 4).setValue(data.number); // column D
-      return respond({ success: true, message: "Number assigned" });
-    }
-  }
-  return respond({ success: false, message: "Employee not found" });
-}
-
-// ── CHANGE PASSWORD (Employee self — verifies old password) ──
-function changePassword(data) {
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("users");
-  var rows  = sheet.getDataRange().getValues();
-
-  for (var i = 1; i < rows.length; i++) {
-    var name       = rows[i][0].toString().trim();
-    var storedHash = rows[i][1].toString().trim();
-
-    if (name === data.name.trim()) {
-      if (storedHash !== data.old_password.trim()) {
-        return respond({ success: false, message: "Current password is incorrect" });
-      }
-      sheet.getRange(i + 1, 2).setValue(data.new_password); // update password
-      sheet.getRange(i + 1, 5).setValue("FALSE");           // clear must_change flag
-      return respond({ success: true, message: "Password changed successfully" });
-    }
-  }
-  return respond({ success: false, message: "User not found" });
-}
-
-// ── RESET PASSWORD (Admin — sets must_change = TRUE) ──
-function resetPassword(data) {
-  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("users");
-  var rows  = sheet.getDataRange().getValues();
-
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0].toString().trim() === data.name.trim()) {
-      sheet.getRange(i + 1, 2).setValue(data.new_password); // update password
-      sheet.getRange(i + 1, 5).setValue("TRUE");            // force change on next login
-      return respond({ success: true, message: "Password reset. Employee must change on next login." });
-    }
-  }
-  return respond({ success: false, message: "Employee not found" });
-}
-
-// ── DASHBOARD (Admin) ─────────────────────────────────
+// ── DASHBOARD (Admin) ───────────────────────────────────
+// data.date = "yyyy-MM-dd" (optional, defaults to today)
 function getDashboard() {
-  var ss          = SpreadsheetApp.openById(SHEET_ID);
-  var usersSheet  = ss.getSheetByName("users");
-  var logSheet    = ss.getSheetByName("parking_log");
+  var data = arguments[0] || {};
+  var ss        = SpreadsheetApp.openById(SHEET_ID);
+  var empSheet  = ss.getSheetByName("employees");
+  var logSheet  = ss.getSheetByName("parking_log");
+  var now       = new Date();
+  var today     = data.date
+    ? data.date.toString().trim()
+    : Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd");
 
-  var now   = new Date();
-  var today = Utilities.formatDate(now, Session.getScriptTimeZone(), "yyyy-MM-dd");
-
-  var userRows  = usersSheet.getDataRange().getValues();
+  // All employees (role = employee)
+  var empRows   = empSheet.getDataRange().getValues();
   var employees = [];
-  for (var i = 1; i < userRows.length; i++) {
-    if (userRows[i][2].toString().trim() === "employee") {
+  for (var i = 1; i < empRows.length; i++) {
+    if (empRows[i][4].toString().trim() === "employee") {
       employees.push({
-        name:   userRows[i][0].toString().trim(),
-        number: userRows[i][3] ? userRows[i][3].toString().trim() : ""
+        emp_code: empRows[i][0].toString().trim(),
+        name:     empRows[i][1].toString().trim(),
+        email:    empRows[i][2].toString().trim(),
+        number:   empRows[i][5] ? empRows[i][5].toString().trim() : ""
       });
     }
   }
 
+  // Today's parking logs
   var logRows   = logSheet.getDataRange().getValues();
-  var parkedMap = {};
+  var parkedMap = {}; // emp_code -> { vehicle_no, time }
   for (var j = 1; j < logRows.length; j++) {
-    if (logRows[j][3].toString() === today) {
-      var empName = logRows[j][0].toString().trim();
-      parkedMap[empName] = {
-        vehicle_no: logRows[j][1],
-        timestamp:  logRows[j][2].toString().substring(11, 16)
+    if (logRows[j][4].toString() === today) {
+      var code = logRows[j][0].toString().trim();
+      parkedMap[code] = {
+        vehicle_no: logRows[j][2],
+        time:       logRows[j][3].toString().substring(11, 16)
       };
     }
   }
@@ -173,21 +113,81 @@ function getDashboard() {
   var parked = [], notParked = [];
   for (var k = 0; k < employees.length; k++) {
     var emp = employees[k];
-    if (parkedMap[emp.name]) {
-      parked.push({ name: emp.name, number: emp.number, vehicle_no: parkedMap[emp.name].vehicle_no, time: parkedMap[emp.name].timestamp });
+    if (parkedMap[emp.emp_code]) {
+      parked.push({
+        emp_code:   emp.emp_code,
+        name:       emp.name,
+        email:      emp.email,
+        number:     emp.number,
+        vehicle_no: parkedMap[emp.emp_code].vehicle_no,
+        time:       parkedMap[emp.emp_code].time
+      });
     } else {
-      notParked.push({ name: emp.name, number: emp.number });
+      notParked.push({
+        emp_code: emp.emp_code,
+        name:     emp.name,
+        email:    emp.email,
+        number:   emp.number
+      });
     }
   }
 
   return respond({
-    success: true, total: employees.length,
-    parked_count: parked.length, not_parked_count: notParked.length,
-    parked: parked, not_parked: notParked
+    success: true,
+    date:             today,
+    total:            employees.length,
+    parked_count:     parked.length,
+    not_parked_count: notParked.length,
+    parked:           parked,
+    not_parked:       notParked
   });
 }
 
-// ── HELPER ─────────────────────────────────────────────
+// ── ASSIGN NUMBER ───────────────────────────────────────
+function assignNumber(data) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("employees");
+  var rows  = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0].toString().trim() === data.emp_code.trim()) {
+      sheet.getRange(i + 1, 6).setValue(data.number); // column F
+      return respond({ success: true, message: "Number assigned" });
+    }
+  }
+  return respond({ success: false, message: "Employee not found" });
+}
+
+// ── CHANGE PASSWORD (employee self) ─────────────────────
+function changePassword(data) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("employees");
+  var rows  = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][1].toString().trim() === data.name.trim()) {
+      if (rows[i][3].toString().trim() !== data.old_password.trim()) {
+        return respond({ success: false, message: "Current password is incorrect" });
+      }
+      sheet.getRange(i + 1, 4).setValue(data.new_password); // column D
+      sheet.getRange(i + 1, 7).setValue("FALSE");           // column G
+      return respond({ success: true, message: "Password changed successfully" });
+    }
+  }
+  return respond({ success: false, message: "User not found" });
+}
+
+// ── RESET PASSWORD (admin — sets must_change = TRUE) ────
+function resetPassword(data) {
+  var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("employees");
+  var rows  = sheet.getDataRange().getValues();
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][1].toString().trim() === data.name.trim()) {
+      sheet.getRange(i + 1, 4).setValue(data.new_password); // column D
+      sheet.getRange(i + 1, 7).setValue("TRUE");            // column G
+      return respond({ success: true, message: "Password reset. Employee must change on next login." });
+    }
+  }
+  return respond({ success: false, message: "Employee not found" });
+}
+
+// ── HELPER ──────────────────────────────────────────────
 function respond(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))

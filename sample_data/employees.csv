@@ -1,0 +1,6 @@
+emp_code,name,email,password,role,number,must_change
+ADMIN,Admin,admin@mavens-i.com,240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9,admin,,FALSE
+101,Ahmed,ahmed@mavens-i.com,03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4,employee,101,FALSE
+102,Sara,sara@mavens-i.com,03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4,employee,102,FALSE
+103,Mohammed,mohammed@mavens-i.com,03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4,employee,103,FALSE
+104,Fatima,fatima@mavens-i.com,03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4,employee,104,FALSE

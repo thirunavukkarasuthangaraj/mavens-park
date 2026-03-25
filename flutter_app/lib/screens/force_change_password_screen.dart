@@ -1,193 +1,196 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../utils/toast.dart';
+import '../theme.dart';
 import 'employee_screen.dart';
 
-/// Shown when must_change == true. User cannot go back or skip.
 class ForceChangePasswordScreen extends StatefulWidget {
   final String userName;
-  final String currentHashedPassword; // the temp password hash from login
+  final String currentHashedPassword;
   const ForceChangePasswordScreen({
     super.key,
     required this.userName,
     required this.currentHashedPassword,
   });
-
   @override
-  State<ForceChangePasswordScreen> createState() => _ForceChangePasswordScreenState();
+  State<ForceChangePasswordScreen> createState() =>
+      _ForceChangePasswordScreenState();
 }
 
-class _ForceChangePasswordScreenState extends State<ForceChangePasswordScreen> {
-  final _newPassCtrl  = TextEditingController();
-  final _confirmCtrl  = TextEditingController();
-  bool _obscureNew    = true;
-  bool _obscureConf   = true;
-  bool _loading       = false;
-  String _error       = '';
+class _ForceChangePasswordScreenState
+    extends State<ForceChangePasswordScreen> {
+  final _newCtrl  = TextEditingController();
+  final _confCtrl = TextEditingController();
+  bool _obscureNew  = true;
+  bool _obscureConf = true;
+  bool _loading     = false;
 
   Future<void> _submit() async {
-    final newPass = _newPassCtrl.text.trim();
-    final confirm = _confirmCtrl.text.trim();
+    final np   = _newCtrl.text.trim();
+    final conf = _confCtrl.text.trim();
+    if (np.isEmpty || conf.isEmpty) { showError('Fill all fields'); return; }
+    if (np.length < 4) { showError('Min 4 characters'); return; }
+    if (np != conf)    { showError('Passwords do not match'); return; }
 
-    if (newPass.isEmpty || confirm.isEmpty) {
-      setState(() => _error = 'Please fill all fields');
-      return;
-    }
-    if (newPass.length < 4) {
-      setState(() => _error = 'Password must be at least 4 characters');
-      return;
-    }
-    if (newPass != confirm) {
-      setState(() => _error = 'Passwords do not match');
-      return;
-    }
+    setState(() => _loading = true);
+    final result = await ApiService.changePasswordHashed(
+        widget.userName, widget.currentHashedPassword, np);
+    setState(() => _loading = false);
 
-    setState(() { _loading = true; _error = ''; });
-
-    try {
-      // We use changePassword but pass the already-hashed temp password as old
-      final result = await ApiService.changePasswordHashed(
-        widget.userName,
-        widget.currentHashedPassword, // old = temp hashed password
-        newPass,                      // new = plain (will be hashed inside)
+    if (result['success'] == true) {
+      showSuccess('Password set successfully. Welcome!');
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+            builder: (_) => EmployeeScreen(userName: widget.userName)),
+        (_) => false,
       );
-
-      if (result['success'] == true) {
-        if (!mounted) return;
-        // Replace entire stack — go to employee home, can't go back to this screen
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => EmployeeScreen(userName: widget.userName)),
-          (_) => false,
-        );
-      } else {
-        setState(() => _error = result['message'] ?? 'Failed');
-      }
-    } catch (_) {
-      setState(() => _error = 'Connection error.');
-    } finally {
-      setState(() => _loading = false);
+    } else {
+      showError(result['message'] ?? 'Failed');
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, // block back button
+      canPop: false,
       child: Scaffold(
-        backgroundColor: Colors.indigo.shade50,
+        backgroundColor: AppColors.bgSoft,
         appBar: AppBar(
           title: const Text('Set New Password'),
-          backgroundColor: Colors.indigo,
+          backgroundColor: AppColors.navy,
           foregroundColor: Colors.white,
-          automaticallyImplyLeading: false, // hide back arrow
+          automaticallyImplyLeading: false,
+          elevation: 0,
         ),
         body: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           child: Column(
             children: [
-              const SizedBox(height: 16),
-              const Icon(Icons.lock_reset, size: 72, color: Colors.indigo),
               const SizedBox(height: 12),
 
-              // Info banner
+              // Warning banner
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.orange.shade300),
+                  color: AppColors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                      color: AppColors.orange.withOpacity(0.4)),
                 ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.orange),
-                    SizedBox(width: 10),
-                    Expanded(
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.orange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.warning_amber_rounded,
+                        color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Your password was reset by admin.\nPlease set a new password to continue.',
+                      style: TextStyle(color: AppColors.textDark,
+                          fontSize: 13, height: 1.5),
+                    ),
+                  ),
+                ]),
+              ),
+              const SizedBox(height: 24),
+
+              // Form card
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(
+                      color: AppColors.navy.withOpacity(0.06),
+                      blurRadius: 16, offset: const Offset(0, 4))],
+                ),
+                child: Column(children: [
+                  Row(children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: AppColors.navy,
                       child: Text(
-                        'Your password was reset by admin.\nPlease set a new password to continue.',
-                        style: TextStyle(color: Colors.orange, fontSize: 13),
+                        widget.userName.isNotEmpty
+                            ? widget.userName[0].toUpperCase() : '?',
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
+                    const SizedBox(width: 10),
+                    Text(widget.userName,
+                        style: const TextStyle(fontWeight: FontWeight.bold,
+                            color: AppColors.textDark, fontSize: 15)),
+                  ]),
+                  const Divider(height: 28),
 
-              // New password
-              TextField(
-                controller: _newPassCtrl,
-                obscureText: _obscureNew,
-                decoration: InputDecoration(
-                  labelText: 'New Password',
-                  prefixIcon: const Icon(Icons.lock),
-                  border: const OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscureNew ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscureNew = !_obscureNew),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
+                  _passField('New Password', _newCtrl, _obscureNew,
+                      () => setState(() => _obscureNew = !_obscureNew)),
+                  const SizedBox(height: 14),
+                  _passField('Confirm Password', _confCtrl, _obscureConf,
+                      () => setState(() => _obscureConf = !_obscureConf)),
+                  const SizedBox(height: 24),
 
-              // Confirm password
-              TextField(
-                controller: _confirmCtrl,
-                obscureText: _obscureConf,
-                decoration: InputDecoration(
-                  labelText: 'Confirm New Password',
-                  prefixIcon: const Icon(Icons.lock_outline),
-                  border: const OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Colors.white,
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscureConf ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscureConf = !_obscureConf),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton.icon(
+                      onPressed: _loading ? null : _submit,
+                      icon: _loading
+                          ? const SizedBox(width: 20, height: 20,
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5))
+                          : const Icon(Icons.arrow_forward_rounded),
+                      label: Text(_loading ? 'Saving...' : 'Save & Continue',
+                          style: const TextStyle(fontSize: 16,
+                              fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.orange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              if (_error.isNotEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(_error,
-                          style: const TextStyle(color: Colors.red))),
-                    ],
-                  ),
-                ),
-
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _loading ? null : _submit,
-                  icon: const Icon(Icons.check),
-                  label: _loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Save & Continue',
-                          style: TextStyle(fontSize: 16)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
+                ]),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _passField(String label, TextEditingController ctrl,
+      bool obscure, VoidCallback toggle) {
+    return TextField(
+      controller: ctrl,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.lock_outline, color: AppColors.navy),
+        suffixIcon: IconButton(
+          icon: Icon(obscure ? Icons.visibility_outlined
+              : Icons.visibility_off_outlined,
+              color: Colors.grey, size: 20),
+          onPressed: toggle,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey.shade300)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.navy, width: 2)),
+        filled: true,
+        fillColor: AppColors.bgSoft,
       ),
     );
   }
