@@ -1,11 +1,21 @@
-var SHEET_ID = "YOUR_GOOGLE_SHEET_ID_HERE";
+var SHEET_ID = "1liGAr2mp1_89fTJoW3_7U8rEyNTHw-PiyZw6glmRX18";
 
 // ── Single sheet: "employees" ───────────────────────────
 // Columns: A=emp_code, B=name, C=email, D=password, E=role, F=number, G=must_change
 // parking_log sheet: A=emp_code, B=name, C=vehicle_no, D=timestamp, E=date
 
+// doGet handles CORS for Flutter Web/Chrome
+function doGet(e) {
+  var data = JSON.parse(decodeURIComponent(e.parameter.data || '{}'));
+  return handleRequest(data);
+}
+
 function doPost(e) {
   var data = JSON.parse(e.postData.contents);
+  return handleRequest(data);
+}
+
+function handleRequest(data) {
   var action = data.action;
   if (action === "login")          return login(data);
   if (action === "parkVehicle")    return parkVehicle(data);
@@ -15,6 +25,7 @@ function doPost(e) {
   if (action === "changePassword") return changePassword(data);
   return respond({ success: false, message: "Unknown action" });
 }
+
 
 // ── SHA-256 hash ────────────────────────────────────────
 function sha256(text) {
