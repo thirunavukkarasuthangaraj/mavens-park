@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../utils/toast.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   final String userName;
@@ -26,19 +27,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final confirm  = _confirmCtrl.text.trim();
 
     if (oldPass.isEmpty || newPass.isEmpty || confirm.isEmpty) {
-      setState(() => _error = 'Please fill all fields');
+      showError('Please fill all fields');
       return;
     }
     if (newPass.length < 4) {
-      setState(() => _error = 'New password must be at least 4 characters');
+      showError('New password must be at least 4 characters');
       return;
     }
     if (newPass != confirm) {
-      setState(() => _error = 'New passwords do not match');
+      showError('New passwords do not match');
       return;
     }
     if (oldPass == newPass) {
-      setState(() => _error = 'New password must be different from current');
+      showError('New password must be different from current');
       return;
     }
 
@@ -49,16 +50,11 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           widget.userName, oldPass, newPass);
 
       if (result['success'] == true) {
+        showSuccess('Password changed successfully');
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Password changed successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
         Navigator.pop(context);
       } else {
-        setState(() => _error = result['message'] ?? 'Failed to change password');
+        showError(result['message'] ?? 'Failed to change password');
       }
     } catch (_) {
       setState(() => _error = 'Connection error.');

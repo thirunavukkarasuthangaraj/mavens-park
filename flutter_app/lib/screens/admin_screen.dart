@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../utils/toast.dart';
 import 'login_screen.dart';
 
 class AdminScreen extends StatefulWidget {
@@ -108,13 +109,9 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
               onPressed: () async {
                 final np = newPassCtrl.text.trim();
                 final cp = confirmCtrl.text.trim();
-                if (np.isEmpty) return;
-                if (np != cp) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Passwords do not match'),
-                        backgroundColor: Colors.red));
-                  return;
-                }
+                if (np.isEmpty) { showError('Please enter a password'); return; }
+                if (np.length < 4) { showError('Password must be at least 4 characters'); return; }
+                if (np != cp) { showError('Passwords do not match'); return; }
                 Navigator.pop(ctx);
                 await _resetPassword(empName, np);
               },
@@ -128,13 +125,10 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _resetPassword(String empName, String newPassword) async {
     final result = await ApiService.resetPassword(empName, newPassword);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result['success'] == true
-            ? 'Password reset for $empName'
-            : result['message'] ?? 'Failed'),
-        backgroundColor: result['success'] == true ? Colors.green : Colors.red,
-      ));
+    if (result['success'] == true) {
+      showSuccess('Password reset for $empName');
+    } else {
+      showError(result['message'] ?? 'Failed to reset password');
     }
   }
 
@@ -186,14 +180,11 @@ class _AdminScreenState extends State<AdminScreen> with SingleTickerProviderStat
 
   Future<void> _assignNumber(String empName, String number) async {
     final result = await ApiService.assignNumber(empName, number);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(result['success'] == true
-            ? 'Number $number assigned to $empName'
-            : result['message'] ?? 'Failed'),
-        backgroundColor: result['success'] == true ? Colors.green : Colors.red,
-      ));
-      if (result['success'] == true) _loadDashboard();
+    if (result['success'] == true) {
+      showSuccess('Number $number assigned to $empName');
+      _loadDashboard();
+    } else {
+      showError(result['message'] ?? 'Failed to assign number');
     }
   }
 

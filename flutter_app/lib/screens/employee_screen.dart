@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../utils/toast.dart';
 import 'login_screen.dart';
 import 'change_password_screen.dart';
 
@@ -14,29 +15,25 @@ class EmployeeScreen extends StatefulWidget {
 class _EmployeeScreenState extends State<EmployeeScreen> {
   final _vehicleCtrl = TextEditingController();
   bool _loading      = false;
-  String _message    = '';
-  bool _success      = false;
 
   Future<void> _park() async {
     final vehicleNo = _vehicleCtrl.text.trim().toUpperCase();
     if (vehicleNo.isEmpty) {
-      setState(() { _message = 'Please enter your vehicle number'; _success = false; });
+      showError('Please enter your vehicle number');
       return;
     }
 
-    setState(() { _loading = true; _message = ''; });
+    setState(() => _loading = true);
 
-    try {
-      final result = await ApiService.parkVehicle(widget.userName, vehicleNo);
-      setState(() {
-        _success = result['success'] == true;
-        _message = result['message'] ?? 'Something went wrong';
-      });
-      if (_success) _vehicleCtrl.clear();
-    } catch (_) {
-      setState(() { _message = 'Connection error.'; _success = false; });
-    } finally {
-      setState(() => _loading = false);
+    final result = await ApiService.parkVehicle(widget.userName, vehicleNo);
+
+    setState(() => _loading = false);
+
+    if (result['success'] == true) {
+      showSuccess('Vehicle parked successfully');
+      _vehicleCtrl.clear();
+    } else {
+      showError(result['message'] ?? 'Failed to park vehicle');
     }
   }
 
@@ -89,26 +86,7 @@ class _EmployeeScreenState extends State<EmployeeScreen> {
                 hintText: 'e.g. ABC-1234',
               ),
             ),
-            const SizedBox(height: 16),
-            if (_message.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _success ? Colors.green.shade50 : Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: _success ? Colors.green : Colors.red),
-                ),
-                child: Row(
-                  children: [
-                    Icon(_success ? Icons.check_circle : Icons.error,
-                        color: _success ? Colors.green : Colors.red),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(_message)),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 50,
