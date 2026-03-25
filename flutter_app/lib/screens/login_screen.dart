@@ -13,25 +13,25 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _nameCtrl     = TextEditingController();
+  final _codeCtrl     = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _loading       = false;
   bool _obscure       = true;
   String _error       = '';
 
   Future<void> _login() async {
-    final name     = _nameCtrl.text.trim();
+    final code     = _codeCtrl.text.trim();
     final password = _passwordCtrl.text.trim();
 
-    if (name.isEmpty || password.isEmpty) {
-      setState(() => _error = 'Please enter name and password');
+    if (code.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Please enter employee code and password');
       return;
     }
 
     setState(() { _loading = true; _error = ''; });
 
     try {
-      final result = await ApiService.login(name, password);
+      final result = await ApiService.login(code, password);
 
       if (result['success'] == true) {
         final role       = result['role'];
@@ -95,12 +95,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       color: Colors.indigo)),
               const SizedBox(height: 32),
 
-              // Name
+              // Employee Code
               TextField(
-                controller: _nameCtrl,
+                controller: _codeCtrl,
+                keyboardType: TextInputType.text,
                 decoration: const InputDecoration(
-                  labelText: 'Name',
-                  prefixIcon: Icon(Icons.person),
+                  labelText: 'Employee Code',
+                  hintText: 'e.g. 101',
+                  prefixIcon: Icon(Icons.badge),
                   border: OutlineInputBorder(),
                   filled: true,
                   fillColor: Colors.white,

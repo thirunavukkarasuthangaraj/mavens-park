@@ -2,106 +2,71 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'utils/hash.dart';
 
-// Replace with your deployed Apps Script Web App URL
 const String scriptUrl = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+const _timeout = Duration(seconds: 15);
 
 class ApiService {
-  static Future<Map<String, dynamic>> login(String name, String password) async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "action":   "login",
-        "name":     name,
-        "password": hashPassword(password),
-      }),
-    );
-    return jsonDecode(res.body);
+  // ── safe POST helper — never throws, always returns a map ──
+  static Future<Map<String, dynamic>> _post(Map<String, dynamic> body) async {
+    try {
+      final res = await http.post(
+        Uri.parse(scriptUrl),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      ).timeout(_timeout);
+      final decoded = jsonDecode(res.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {"success": false, "message": "Unexpected response"};
+    } catch (_) {
+      return {"success": false, "message": "Connection error. Check your internet."};
+    }
   }
 
-  static Future<Map<String, dynamic>> parkVehicle(String userName, String vehicleNo) async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
-        "action":     "parkVehicle",
-        "user_name":  userName,
-        "vehicle_no": vehicleNo,
-      }),
-    );
-    return jsonDecode(res.body);
-  }
+  // ── LOGIN (by employee code or admin name) ─────────────────
+  static Future<Map<String, dynamic>> login(String code, String password) =>
+      _post({"action": "login", "code": code, "password": hashPassword(password)});
 
-  static Future<Map<String, dynamic>> getTodayLogs() async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"action": "getTodayLogs"}),
-    );
-    return jsonDecode(res.body);
-  }
+  // ── PARK VEHICLE ───────────────────────────────────────────
+  static Future<Map<String, dynamic>> parkVehicle(String userName, String vehicleNo) =>
+      _post({"action": "parkVehicle", "user_name": userName, "vehicle_no": vehicleNo});
 
-  static Future<Map<String, dynamic>> getDashboard() async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"action": "getDashboard"}),
-    );
-    return jsonDecode(res.body);
-  }
+  // ── TODAY LOGS ─────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getTodayLogs() =>
+      _post({"action": "getTodayLogs"});
 
-  static Future<Map<String, dynamic>> assignNumber(String name, String number) async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"action": "assignNumber", "name": name, "number": number}),
-    );
-    return jsonDecode(res.body);
-  }
+  // ── DASHBOARD ──────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getDashboard() =>
+      _post({"action": "getDashboard"});
 
-  /// Employee changes own password — verifies old password (plain text, hashed here)
+  // ── ASSIGN NUMBER ──────────────────────────────────────────
+  static Future<Map<String, dynamic>> assignNumber(String name, String number) =>
+      _post({"action": "assignNumber", "name": name, "number": number});
+
+  // ── CHANGE PASSWORD (employee — plain old password) ────────
   static Future<Map<String, dynamic>> changePassword(
-      String name, String oldPassword, String newPassword) async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
+          String name, String oldPassword, String newPassword) =>
+      _post({
         "action":       "changePassword",
         "name":         name,
         "old_password": hashPassword(oldPassword),
         "new_password": hashPassword(newPassword),
-      }),
-    );
-    return jsonDecode(res.body);
-  }
+      });
 
-  /// Force change after admin reset — old password is already hashed (from login response)
+  // ── CHANGE PASSWORD (force — old password already hashed) ──
   static Future<Map<String, dynamic>> changePasswordHashed(
-      String name, String oldHashedPassword, String newPassword) async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
+          String name, String oldHashedPassword, String newPassword) =>
+      _post({
         "action":       "changePassword",
         "name":         name,
-        "old_password": oldHashedPassword,   // already hashed
+        "old_password": oldHashedPassword,
         "new_password": hashPassword(newPassword),
-      }),
-    );
-    return jsonDecode(res.body);
-  }
+      });
 
-  /// Admin resets employee password — sets must_change = TRUE in sheet
-  static Future<Map<String, dynamic>> resetPassword(String name, String newPassword) async {
-    final res = await http.post(
-      Uri.parse(scriptUrl),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({
+  // ── RESET PASSWORD (admin — sets must_change = TRUE) ───────
+  static Future<Map<String, dynamic>> resetPassword(String name, String newPassword) =>
+      _post({
         "action":       "resetPassword",
         "name":         name,
         "new_password": hashPassword(newPassword),
-      }),
-    );
-    return jsonDecode(res.body);
-  }
+      });
 }

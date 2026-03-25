@@ -26,18 +26,28 @@ function sha256(text) {
 }
 
 // ── LOGIN ──────────────────────────────────────────────
-// Returns must_change: true if employee must change password before using app
+// Employees login with their code (number column D)
+// Admin logs in with name (column A) as code
 function login(data) {
   var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName("users");
   var rows  = sheet.getDataRange().getValues();
 
-  for (var i = 1; i < rows.length; i++) {
-    var name        = rows[i][0].toString().trim();
-    var storedHash  = rows[i][1].toString().trim();
-    var role        = rows[i][2].toString().trim();
-    var mustChange  = rows[i][4].toString().trim().toUpperCase(); // column E
+  var inputCode = data.code.toString().trim();
+  var inputPass = data.password.toString().trim();
 
-    if (name === data.name.trim() && storedHash === data.password.trim()) {
+  for (var i = 1; i < rows.length; i++) {
+    var name       = rows[i][0].toString().trim();
+    var storedHash = rows[i][1].toString().trim();
+    var role       = rows[i][2].toString().trim();
+    var empCode    = rows[i][3].toString().trim(); // column D = number/code
+    var mustChange = rows[i][4].toString().trim().toUpperCase(); // column E
+
+    // Match by employee code (column D) for employees
+    // Match by name (column A) for admin (admin has no number)
+    var codeMatch = (empCode !== "" && empCode === inputCode) ||
+                    (role === "admin" && name.toLowerCase() === inputCode.toLowerCase());
+
+    if (codeMatch && storedHash === inputPass) {
       return respond({
         success:     true,
         name:        name,
@@ -46,7 +56,7 @@ function login(data) {
       });
     }
   }
-  return respond({ success: false, message: "Invalid name or password" });
+  return respond({ success: false, message: "Invalid code or password" });
 }
 
 // ── PARK VEHICLE ───────────────────────────────────────
