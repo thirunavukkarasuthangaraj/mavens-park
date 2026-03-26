@@ -30,10 +30,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _loading = true);
     final result = await ApiService.login(code, password);
+    if (!mounted) return;
     setState(() => _loading = false);
 
     if (result['success'] == true) {
-      if (!mounted) return;
       final role = result['role'];
       final mustChange = result['must_change'] == true;
       final name = result['name'] ?? '';
@@ -164,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                       decoration: _inputDecoration(
                         label: 'Employee Code',
-                        hint: 'M0123',
+                        hint: 'M0000',
                         icon: Icons.badge_outlined,
                       ).copyWith(counterText: ''),
                     ),

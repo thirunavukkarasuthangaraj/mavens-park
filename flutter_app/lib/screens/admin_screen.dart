@@ -30,6 +30,15 @@ class _AdminScreenState extends State<AdminScreen>
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
+  // Report tab
+  DateTime? _reportFrom;
+  DateTime? _reportTo;
+  bool _reportLoading = false;
+  List<dynamic> _reportRecords = [];
+  bool _reportLoaded = false;
+  final _reportSearchCtrl = TextEditingController();
+  String _reportSearch = '';
+
   List<dynamic> get _filteredParked => _parked.where(_matchSearch).toList();
   List<dynamic> get _filteredNotParked => _notParked.where(_matchSearch).toList();
 
@@ -44,7 +53,7 @@ class _AdminScreenState extends State<AdminScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadDashboard();
   }
 
@@ -79,6 +88,7 @@ class _AdminScreenState extends State<AdminScreen>
   Future<void> _loadDashboard() async {
     setState(() { _loading = true; _error = ''; });
     final result = await ApiService.getDashboard(date: _formatDate(_selectedDate));
+    if (!mounted) return;
     if (result['success'] == true) {
       setState(() {
         _total          = result['total']            ?? 0;
@@ -377,6 +387,7 @@ class _AdminScreenState extends State<AdminScreen>
                     tabs: [
                       Tab(text: 'Parked ($_parkedCount)'),
                       Tab(text: 'Not Parked ($_notParkedCount)'),
+                      const Tab(text: 'Report'),
                     ],
                   ),
                 ],
@@ -449,7 +460,7 @@ class _AdminScreenState extends State<AdminScreen>
                         ]))
                       : TabBarView(
                           controller: _tabController,
-                          children: [_parkedList(), _notParkedList()],
+                          children: [_parkedList(), _notParkedList(), _reportTab()],
                         ),
             ),
           ],
@@ -591,14 +602,31 @@ class _AdminScreenState extends State<AdminScreen>
               fontWeight: FontWeight.bold)),
         ),
         const SizedBox(width: 4),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.navy.withOpacity(0.07),
-            borderRadius: BorderRadius.circular(8),
+        GestureDetector(
+          onTap: onAssign,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.navy.withOpacity(0.07),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.navy.withOpacity(0.2)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(empCode, style: const TextStyle(fontSize: 11,
+                    color: AppColors.navy, fontWeight: FontWeight.w600)),
+                if (number.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text('#$number', style: const TextStyle(fontSize: 10,
+                      color: AppColors.orange, fontWeight: FontWeight.bold)),
+                ] else ...[
+                  const SizedBox(height: 1),
+                  const Icon(Icons.tag, size: 10, color: AppColors.textGrey),
+                ],
+              ],
+            ),
           ),
-          child: Text(empCode, style: const TextStyle(fontSize: 11,
-              color: AppColors.navy, fontWeight: FontWeight.w600)),
         ),
         const SizedBox(width: 6),
         _iconBtn(Icons.lock_reset, AppColors.orange, onReset),
@@ -640,5 +668,282 @@ class _AdminScreenState extends State<AdminScreen>
               color: AppColors.textDark)),
         ]),
       );
+
+  // ── Report tab ──────────────────────────────────────────
+  String _fmtDate(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2,'0')}-${d.day.toString().padLeft(2,'0')}';
+
+  String _friendlyDate(String date) {
+    try {
+      final d = DateTime.parse(date);
+      return '${d.day}/${d.month}/${d.year}';
+    } catch (_) { return date; }
+  }
+
+  Future<void> _pickReportRange() async {
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      initialDateRange: _reportFrom != null && _reportTo != null
+          ? DateTimeRange(start: _reportFrom!, end: _reportTo!)
+          : DateTimeRange(
+              start: DateTime.now().subtract(const Duration(days: 6)),
+              end: DateTime.now()),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(
+            primary: AppColors.navy, secondary: AppColors.orange),
+        ),
+        child: child!,
+      ),
+    );
+    if (range != null) {
+      setState(() { _reportFrom = range.start; _reportTo = range.end; });
+      _loadReport();
+    }
+  }
+
+  Future<void> _loadReport() async {
+    if (_reportFrom == null || _reportTo == null) return;
+    setState(() => _reportLoading = true);
+    final result = await ApiService.getReport(
+        fromDate: _fmtDate(_reportFrom!), toDate: _fmtDate(_reportTo!));
+    if (result['success'] == true) {
+      setState(() { _reportRecords = result['records'] ?? []; _reportLoaded = true; });
+    } else {
+      showError(result['message'] ?? 'Failed to load report');
+    }
+    setState(() => _reportLoading = false);
+  }
+
+  Future<void> _exportReportCSV() async {
+    try {
+      final fromStr = _reportFrom != null ? _fmtDate(_reportFrom!) : 'all';
+      final toStr   = _reportTo   != null ? _fmtDate(_reportTo!)   : 'all';
+      final filtered = _reportSearch.isEmpty
+          ? _reportRecords
+          : _reportRecords.where((r) {
+              final q = _reportSearch.toLowerCase();
+              return (r['name']?.toString().toLowerCase().contains(q) ?? false) ||
+                     (r['emp_code']?.toString().toLowerCase().contains(q) ?? false) ||
+                     (r['vehicle_no']?.toString().toLowerCase().contains(q) ?? false);
+            }).toList();
+
+      final buffer = StringBuffer();
+      buffer.writeln('Mavens Park - Parking Report');
+      buffer.writeln('Period: $fromStr to $toStr');
+      buffer.writeln('Total Records: ${filtered.length}');
+      buffer.writeln('');
+      buffer.writeln('Date,Emp Code,Name,Number,Vehicle No,Time');
+      for (var r in filtered) {
+        buffer.writeln(
+            '${r['date'] ?? ''},${r['emp_code'] ?? ''},${r['name'] ?? ''},${r['number'] ?? ''},${r['vehicle_no'] ?? ''},${r['time'] ?? ''}');
+      }
+
+      final bytes = Uint8List.fromList(utf8.encode(buffer.toString()));
+      await Share.shareXFiles(
+        [XFile.fromData(bytes,
+            name: 'parking_report_${fromStr}_to_$toStr.csv',
+            mimeType: 'text/csv')],
+        subject: 'Parking Report $fromStr – $toStr',
+      );
+    } catch (_) {
+      showError('Failed to export. Try again.');
+    }
+  }
+
+  List<dynamic> get _filteredReport {
+    if (_reportSearch.isEmpty) return _reportRecords;
+    final q = _reportSearch.toLowerCase();
+    return _reportRecords.where((r) =>
+        (r['name']?.toString().toLowerCase().contains(q) ?? false) ||
+        (r['emp_code']?.toString().toLowerCase().contains(q) ?? false) ||
+        (r['vehicle_no']?.toString().toLowerCase().contains(q) ?? false)).toList();
+  }
+
+  Widget _reportTab() {
+    final hasRange = _reportFrom != null && _reportTo != null;
+    final rangeLabel = hasRange
+        ? '${_reportFrom!.day}/${_reportFrom!.month}/${_reportFrom!.year} – ${_reportTo!.day}/${_reportTo!.month}/${_reportTo!.year}'
+        : 'Select date range';
+
+    return Column(children: [
+      // Date range + CSV bar
+      Container(
+        color: AppColors.bgSoft,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: _pickReportRange,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: hasRange
+                          ? AppColors.orange.withOpacity(0.5)
+                          : Colors.grey.shade300),
+                ),
+                child: Row(children: [
+                  Icon(Icons.date_range,
+                      color: hasRange ? AppColors.orange : AppColors.textGrey,
+                      size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(rangeLabel,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: hasRange ? AppColors.textDark : AppColors.textGrey,
+                            fontWeight: hasRange ? FontWeight.w600 : FontWeight.normal)),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: AppColors.textGrey),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: (!hasRange || _reportRecords.isEmpty) ? null : _exportReportCSV,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: (!hasRange || _reportRecords.isEmpty)
+                    ? Colors.grey.shade200
+                    : AppColors.orange,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(children: [
+                Icon(Icons.download_rounded,
+                    color: (!hasRange || _reportRecords.isEmpty)
+                        ? Colors.grey
+                        : Colors.white,
+                    size: 16),
+                const SizedBox(width: 4),
+                Text('CSV',
+                    style: TextStyle(
+                        color: (!hasRange || _reportRecords.isEmpty)
+                            ? Colors.grey
+                            : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+
+      // Search bar (visible when loaded)
+      if (_reportLoaded) Container(
+        color: AppColors.bgSoft,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: TextField(
+          controller: _reportSearchCtrl,
+          onChanged: (v) => setState(() => _reportSearch = v.trim()),
+          style: const TextStyle(fontSize: 13),
+          decoration: InputDecoration(
+            hintText: 'Search name, emp code, vehicle...',
+            hintStyle: const TextStyle(color: AppColors.textGrey, fontSize: 12),
+            prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.textGrey),
+            suffixIcon: _reportSearch.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.close, size: 16, color: AppColors.textGrey),
+                    onPressed: () => setState(() {
+                      _reportSearchCtrl.clear(); _reportSearch = '';
+                    }))
+                : null,
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.grey.shade300)),
+          ),
+        ),
+      ),
+
+      // Content
+      Expanded(child: _reportLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.navy))
+          : !hasRange
+              ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.date_range, size: 56, color: Colors.grey.shade300),
+                  const SizedBox(height: 12),
+                  const Text('Select a date range to load report',
+                      style: TextStyle(color: AppColors.textGrey)),
+                ]))
+              : !_reportLoaded
+                  ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.bar_chart, size: 56, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      const Text('Tap the date range to load',
+                          style: TextStyle(color: AppColors.textGrey)),
+                    ]))
+                  : _filteredReport.isEmpty
+                      ? _emptyState('No records found', Icons.search_off)
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          itemCount: _filteredReport.length,
+                          itemBuilder: (_, i) {
+                            final r = _filteredReport[i];
+                            final number = r['number']?.toString() ?? '';
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [BoxShadow(
+                                    color: AppColors.navy.withOpacity(0.04),
+                                    blurRadius: 8, offset: const Offset(0, 2))],
+                              ),
+                              child: Row(children: [
+                                CircleAvatar(
+                                  radius: 18,
+                                  backgroundColor: Colors.green.withOpacity(0.1),
+                                  child: number.isNotEmpty
+                                      ? Text(number,
+                                          style: const TextStyle(fontSize: 11,
+                                              color: Colors.green,
+                                              fontWeight: FontWeight.bold))
+                                      : const Icon(Icons.check,
+                                          color: Colors.green, size: 16),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(r['name'] ?? '',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13, color: AppColors.textDark)),
+                                      Text('${r['vehicle_no'] ?? ''} · ${r['emp_code'] ?? ''}',
+                                          style: const TextStyle(
+                                              fontSize: 11, color: AppColors.textGrey)),
+                                    ],
+                                  ),
+                                ),
+                                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                                  Text(_friendlyDate(r['date'] ?? ''),
+                                      style: const TextStyle(
+                                          fontSize: 11, fontWeight: FontWeight.bold,
+                                          color: AppColors.navy)),
+                                  Text(_toAmPm(r['time'] ?? ''),
+                                      style: const TextStyle(
+                                          fontSize: 11, color: Colors.green)),
+                                ]),
+                              ]),
+                            );
+                          },
+                        ),
+      ),
+    ]);
+  }
 
 }

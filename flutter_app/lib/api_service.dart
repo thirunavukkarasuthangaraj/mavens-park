@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'utils/hash.dart';
 
 const String scriptUrl =
-    "https://script.google.com/macros/s/AKfycbxCSdtFgIjs8kCwELMOjxdaEe3SPHv6tNHU35H7n2poBIRrLFMX442T_EXVeB5llmXp/exec";
+    "https://script.google.com/macros/s/AKfycbz7hMzHIrcDUfxcz4xuAFr_NcNYxtqD9EtoLharFvQQZzFwiopRIT63aukZx4ESpNUC/exec";
 
 const _timeout = Duration(seconds: 30);
 
@@ -96,6 +96,25 @@ class ApiService {
       _get({"action": "changePassword", "name": name,
             "old_password": oldHashedPassword,
             "new_password": hashPassword(newPassword)});
+
+  // ── GET HISTORY (employee) ──────────────────────────────
+  static Future<Map<String, dynamic>> getHistory(
+          String empCode, {String? fromDate, String? toDate}) =>
+      _get({
+        "action": "getHistory",
+        "emp_code": empCode,
+        if (fromDate != null) "from_date": fromDate,
+        if (toDate != null) "to_date": toDate,
+      });
+
+  // ── GET REPORT (admin: date range) ──────────────────────
+  static Future<Map<String, dynamic>> getReport(
+          {String? fromDate, String? toDate}) =>
+      _get({
+        "action": "getReport",
+        if (fromDate != null) "from_date": fromDate,
+        if (toDate != null) "to_date": toDate,
+      });
 
   // ── RESET PASSWORD (admin) ──────────────────────────────
   static Future<Map<String, dynamic>> resetPassword(

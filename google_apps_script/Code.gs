@@ -18,6 +18,8 @@ function handleRequest(data) {
   if (action === "assignNumber")   return assignNumber(data);
   if (action === "resetPassword")  return resetPassword(data);
   if (action === "changePassword") return changePassword(data);
+  if (action === "getHistory")    return getHistory(data);
+  if (action === "getReport")     return getReport(data);
   return respond({ success: false, message: "Unknown action" });
 }
 
@@ -199,6 +201,73 @@ function resetPassword(data) {
     }
   }
   return respond({ success: false, message: "Employee not found" });
+}
+
+// ── GET REPORT (admin: date range) ──────────────────────
+function getReport(data) {
+  var ss       = SpreadsheetApp.openById(SHEET_ID);
+  var empSheet = ss.getSheetByName("employees");
+  var logSheet = ss.getSheetByName("parking_log");
+  var tz       = Session.getScriptTimeZone();
+  var fromDate = data.from_date ? data.from_date.toString().trim() : null;
+  var toDate   = data.to_date   ? data.to_date.toString().trim()   : null;
+
+  // Build employee map
+  var empRows = empSheet.getDataRange().getValues();
+  var empMap = {};
+  for (var i = 1; i < empRows.length; i++) {
+    if (empRows[i][4].toString().trim() === "employee") {
+      var code = empRows[i][0].toString().trim();
+      empMap[code] = {
+        name:   empRows[i][1].toString().trim(),
+        number: empRows[i][5] ? empRows[i][5].toString().trim() : ""
+      };
+    }
+  }
+
+  // Collect log rows in range
+  var logRows = logSheet.getDataRange().getValues();
+  var records = [];
+  for (var j = 1; j < logRows.length; j++) {
+    var d = cellDate(logRows[j][3], tz);
+    if (fromDate && d < fromDate) continue;
+    if (toDate   && d > toDate)   continue;
+    var code = logRows[j][0].toString().trim();
+    records.push({
+      emp_code:   code,
+      name:       empMap[code] ? empMap[code].name : logRows[j][1].toString().trim(),
+      number:     empMap[code] ? empMap[code].number : "",
+      vehicle_no: logRows[j][2].toString().trim(),
+      date:       d,
+      time:       cellTime(logRows[j][3], tz)
+    });
+  }
+  records.sort(function(a, b) { return a.date < b.date ? 1 : -1; });
+  return respond({ success: true, records: records, total: records.length });
+}
+
+// ── GET HISTORY (employee) ───────────────────────────────
+function getHistory(data) {
+  var sheet     = SpreadsheetApp.openById(SHEET_ID).getSheetByName("parking_log");
+  var tz        = Session.getScriptTimeZone();
+  var empCode   = data.emp_code.toString().trim();
+  var fromDate  = data.from_date ? data.from_date.toString().trim() : null;
+  var toDate    = data.to_date   ? data.to_date.toString().trim()   : null;
+  var rows      = sheet.getDataRange().getValues();
+  var history   = [];
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i][0].toString().trim() !== empCode) continue;
+    var d = cellDate(rows[i][3], tz);
+    if (fromDate && d < fromDate) continue;
+    if (toDate   && d > toDate)   continue;
+    history.push({
+      date:       d,
+      time:       cellTime(rows[i][3], tz),
+      vehicle_no: rows[i][2].toString().trim()
+    });
+  }
+  history.reverse();
+  return respond({ success: true, history: history });
 }
 
 // ── HELPER ───────────────────────────────────────────────
